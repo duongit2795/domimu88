@@ -3,7 +3,7 @@
  * Kiểm tra nhanh 1 proxy: có vào được API MU không (trước khi dùng để lấy số dư).
  * Dán proxy -> báo IP, quốc gia, và thử tải trang API xem có bị chặn 403 không.
  */
-require __DIR__ . '/../lib.php';
+require is_file(__DIR__ . '/lib.php') ? __DIR__ . '/lib.php' : __DIR__ . '/../lib.php';
 
 $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
 $proxy = trim($_POST['proxy'] ?? (getenv('MU_PROXY') ?: ''));

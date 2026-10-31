@@ -17,7 +17,12 @@ const BRANCH = 'claude/mu-balance-php';
 const FILES = ['lib.php', 'balance.php', 'public/index.php', 'public/update.php',
     'public/proxy-test.php', 'public/browser-console.js', 'public/balance-popup.js', 'public/bookmarklet.txt'];
 
-$root = realpath(__DIR__ . '/..');
+// Kiểu "phẳng": mọi file nằm cùng 1 thư mục (hợp với hosting có open_basedir).
+// Nhận biết: thư mục chứa update.php KHÔNG tên "public".
+$flat = basename(__DIR__) !== 'public';
+$root = $flat ? __DIR__ : dirname(__DIR__);
+// Đường dẫn trên GitHub -> đường dẫn ghi tại máy chủ.
+$localOf = fn(string $rel) => $root . '/' . ($flat ? preg_replace('#^public/#', '', $rel) : $rel);
 $cli  = PHP_SAPI === 'cli';
 
 $cfg    = is_file($root . '/config.local.php') ? (array) require $root . '/config.local.php' : [];
@@ -101,11 +106,12 @@ foreach (FILES as $rel) {
         echo "✗ $rel — nội dung PHP không hợp lệ, bỏ qua để khỏi hỏng file.\n";
         continue;
     }
-    $dest = $root . '/' . $rel;
+    $dest = $localOf($rel);
+    $name = basename($dest);
     @mkdir(dirname($dest), 0755, true);
     $old = is_file($dest) ? file_get_contents($dest) : null;
     if ($old === $body) {
-        echo "= $rel — không đổi\n";
+        echo "= $name — không đổi\n";
         continue;
     }
     // Ghi an toàn: ra file tạm rồi đổi tên.
@@ -113,11 +119,11 @@ foreach (FILES as $rel) {
     if (file_put_contents($tmp, $body) === false || !@rename($tmp, $dest)) {
         @unlink($tmp);
         $ok = false;
-        echo "✗ $rel — KHÔNG ghi được (thiếu quyền ghi?).\n";
+        echo "✗ $name — KHÔNG ghi được (thiếu quyền ghi?).\n";
         continue;
     }
     $changed++;
-    echo "✓ $rel — đã cập nhật (" . strlen($body) . " bytes)\n";
+    echo "✓ $name — đã cập nhật (" . strlen($body) . " bytes)\n";
 }
 
 echo "\n" . ($ok ? "Hoàn tất. $changed file được cập nhật.\n" : "Có lỗi — xem các dòng ✗ ở trên.\n");

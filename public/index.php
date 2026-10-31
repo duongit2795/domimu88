@@ -1,5 +1,5 @@
 <?php
-require __DIR__ . '/../lib.php';
+require is_file(__DIR__ . '/lib.php') ? __DIR__ . '/lib.php' : __DIR__ . '/../lib.php';
 
 $h = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
 $j = fn($d) => json_encode($d, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
