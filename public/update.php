@@ -65,17 +65,34 @@ function fetch(string $url): array
     return [0, '', 'Không có cURL lẫn allow_url_fopen – hosting chặn kết nối ra ngoài.'];
 }
 
+/** Lấy nội dung file mới nhất. Ưu tiên GitHub API (luôn mới), fallback raw (có thể trễ cache). */
+function fetchFile(string $branch, string $rel): array
+{
+    // 1) GitHub API contents – không bị cache CDN như raw.
+    $api = 'https://api.github.com/repos/' . REPO . '/contents/' . $rel . '?ref=' . rawurlencode($branch);
+    [$code, $body] = fetch($api);
+    if ($code === 200) {
+        $d = json_decode($body, true);
+        if (isset($d['content']) && ($bin = base64_decode(str_replace("\n", '', $d['content']), true)) !== false) {
+            return [200, $bin, 'api'];
+        }
+    }
+    // 2) raw.githubusercontent.com
+    $raw = 'https://raw.githubusercontent.com/' . REPO . '/' . str_replace('%2F', '/', rawurlencode($branch)) . '/' . $rel;
+    [$code, $body, $err] = fetch($raw);
+    return [$code, $body, 'raw' . ($err ? " ($err)" : '')];
+}
+
 $branch = trim($branch);
-echo "Thư mục: $root\nNhánh:  $branch\nNguồn:  https://raw.githubusercontent.com/" . REPO . "/$branch/\n\n";
+echo "Thư mục: $root\nNhánh:  $branch\nNguồn:  GitHub API " . REPO . " @ $branch (dự phòng: raw)\n\n";
 
 $ok = true;
 $changed = 0;
 foreach (FILES as $rel) {
-    $url = 'https://raw.githubusercontent.com/' . REPO . '/' . str_replace('%2F', '/', rawurlencode($branch)) . '/' . $rel;
-    [$code, $body, $err] = fetch($url);
+    [$code, $body, $src] = fetchFile($branch, $rel);
     if ($code !== 200 || $body === '') {
         $ok = false;
-        echo "✗ $rel — tải lỗi (HTTP $code) $err\n";
+        echo "✗ $rel — tải lỗi (HTTP $code, nguồn $src)\n";
         continue;
     }
     if (stripos($body, '<?php') === false) {
