@@ -14,7 +14,8 @@
 const REPO   = 'duongit2795/domimu88';
 const BRANCH = 'claude/mu-balance-php';
 // Danh sách file được cập nhật (đường dẫn tương đối gốc dự án).
-const FILES = ['lib.php', 'balance.php', 'public/index.php', 'public/update.php'];
+const FILES = ['lib.php', 'balance.php', 'public/index.php', 'public/update.php',
+    'public/browser-console.js', 'public/balance-popup.js', 'public/bookmarklet.txt'];
 
 $root = realpath(__DIR__ . '/..');
 $cli  = PHP_SAPI === 'cli';
@@ -95,9 +96,9 @@ foreach (FILES as $rel) {
         echo "✗ $rel — tải lỗi (HTTP $code, nguồn $src)\n";
         continue;
     }
-    if (stripos($body, '<?php') === false) {
+    if (str_ends_with($rel, '.php') && stripos($body, '<?php') === false) {
         $ok = false;
-        echo "✗ $rel — nội dung không hợp lệ, bỏ qua để khỏi hỏng file.\n";
+        echo "✗ $rel — nội dung PHP không hợp lệ, bỏ qua để khỏi hỏng file.\n";
         continue;
     }
     $dest = $root . '/' . $rel;

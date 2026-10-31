@@ -1,0 +1,11 @@
+=== BOOKMARKLET LẤY SỐ DƯ MU (dùng trên điện thoại) ===
+
+Tạo 1 bookmark, sửa ĐỊA CHỈ của nó thành đúng dòng dưới (copy cả dòng,
+bắt đầu bằng javascript:). Sau đó mở trang MU đã đăng nhập rồi bấm bookmark.
+
+javascript:(function(){var s=document.createElement('script');s.src='https://mu.baokm188.com/balance-popup.js?'+Date.now();document.body.appendChild(s);})();
+
+Lưu ý:
+- Phải bấm khi ĐANG MỞ tab trang MU (mu.sng22.vip) và ĐÃ đăng nhập.
+- Nếu Safari chặn bookmarklet, dùng Chrome; hoặc trên máy tính mở Console
+  (F12) rồi dán nội dung file browser-console.js.
