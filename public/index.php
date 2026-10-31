@@ -33,6 +33,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $in['user'] !== '' && $in['pass'] !
   button{margin-top:16px;width:100%;padding:12px;border:0;border-radius:8px;background:#2463eb;color:#fff;font-size:16px;cursor:pointer}
   details{margin-top:12px} summary{cursor:pointer;color:#2463eb}
   .bal{font-size:28px;font-weight:700;color:#0a7d33;margin:16px 0}
+  .okbox{background:#e6f6ec;color:#0a5c2a;padding:10px;border-radius:8px;margin-top:16px;word-break:break-all}
+  pre{white-space:pre-wrap;word-break:break-all}
   .err{background:#fde8e8;color:#9b1c1c;padding:10px;border-radius:8px;margin-top:16px}
   pre{background:#0f172a;color:#e2e8f0;padding:12px;border-radius:8px;overflow:auto;font-size:12px;max-height:400px}
 </style>
@@ -59,6 +61,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $in['user'] !== '' && $in['pass'] !
   </form>
 
 <?php if ($result): ?>
+  <?php if (!empty($result['proxy_check'])): $pc = $result['proxy_check']; ?>
+    <div class="<?= $pc['country'] === 'VN' ? 'okbox' : 'err' ?>">Proxy <?= $h($pc['proxy']) ?> → IP <b><?= $h($pc['ip']) ?></b>, quốc gia <b><?= $h($pc['country']) ?></b></div>
+  <?php endif; ?>
   <?php if (!empty($result['error'])): ?>
     <div class="err"><?= $h($result['error']) ?></div>
   <?php endif; ?>

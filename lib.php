@@ -47,6 +47,14 @@ class MuClient
             $headers[] = 'Authorization: Bearer ' . $this->token;
             $headers[] = 'token: ' . $this->token;
         }
+        $isPage = $method === 'GET' && preg_match('~(\.html?|/)([?#]|$)|^https?://[^/]+$~', $url);
+        $base = $isPage
+            ? ['Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+               'Upgrade-Insecure-Requests: 1', 'Sec-Fetch-Mode: navigate', 'Sec-Fetch-Dest: document']
+            : ['Accept: application/json, text/plain, */*',
+               'Origin: ' . $this->base,
+               'Referer: ' . $this->base . '/home/mobile.html'];
+        $base[] = 'Accept-Language: vi-VN,vi;q=0.9,en;q=0.8';
         $opts = [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_FOLLOWLOCATION => true,
@@ -56,13 +64,13 @@ class MuClient
             CURLOPT_COOKIEFILE     => $this->jar,
             CURLOPT_ENCODING       => '',
             CURLOPT_CUSTOMREQUEST  => $method,
-            CURLOPT_HTTPHEADER     => array_merge([
-                'Accept: application/json, text/plain, */*',
-                'Origin: ' . $this->base,
-                'Referer: ' . $this->base . '/home/mobile.html',
-            ], $headers),
+            CURLOPT_HTTPHEADER     => array_merge($base, $headers),
+            CURLOPT_NOPROXY        => '',
         ];
-        if ($this->proxy) $opts[CURLOPT_PROXY] = $this->proxy;
+        if ($this->proxy) {
+            $opts[CURLOPT_PROXY] = $this->proxy;
+            $opts[CURLOPT_HTTPPROXYTUNNEL] = true;
+        }
         if ($body !== null) $opts[CURLOPT_POSTFIELDS] = $body;
         curl_setopt_array($ch, $opts);
         $res = curl_exec($ch);
@@ -72,9 +80,20 @@ class MuClient
             throw new RuntimeException("Lỗi kết nối: $err ($url)");
         }
         $code = curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+        $via = curl_getinfo($ch, CURLINFO_PRIMARY_IP);
         curl_close($ch);
-        $this->log[] = "$method $url -> HTTP $code";
+        $this->log[] = "$method $url -> HTTP $code (qua $via)";
         return [$code, $res];
+    }
+
+    /** Kiểm tra IP/quốc gia mà Cloudflare (và trang web) nhìn thấy khi đi qua proxy. */
+    public function checkProxy(): array
+    {
+        [$c, $txt] = $this->request('GET', 'https://www.cloudflare.com/cdn-cgi/trace', null, ['Accept: text/plain']);
+        preg_match('/^ip=(.*)$/m', $txt, $ip);
+        preg_match('/^loc=(.*)$/m', $txt, $loc);
+        return ['http' => $c, 'ip' => $ip[1] ?? '?', 'country' => $loc[1] ?? '?', 'proxy' => $this->proxy
+            ? preg_replace('#//[^@]*@#', '//***@', $this->proxy) : '(không dùng)'];
     }
 
     /** Quét HTML + JS của trang mobile, trả về danh sách đường dẫn API khả nghi. */
@@ -83,7 +102,11 @@ class MuClient
         $page = $this->base . '/home/mobile.html';
         [, $html] = $this->request('GET', $page);
         if (str_contains($html, 'Truy cập bị cấm')) {
-            throw new RuntimeException('Trang chặn theo khu vực – proxy không phải IP Việt Nam hoặc không hoạt động.');
+            $chk = $this->checkProxy();
+            throw new RuntimeException("Trang chặn theo khu vực. IP đi ra: {$chk['ip']} – quốc gia Cloudflare nhận: {$chk['country']}. "
+                . ($chk['country'] === 'VN'
+                    ? 'IP là Việt Nam nhưng vẫn bị chặn – có thể IP proxy nằm trong danh sách đen (IP datacenter). Thử proxy dân cư/4G Việt Nam khác.'
+                    : 'Proxy không ra IP Việt Nam – kiểm tra lại proxy.'));
         }
         preg_match_all('#(?:src|href)=["\']([^"\']+\.js[^"\']*)["\']#i', $html, $m);
         $queue = array_values(array_unique(array_map(fn($u) => $this->url($u, $page), $m[1])));
@@ -207,6 +230,8 @@ function mu_run(array $in): array
     $c = new MuClient($in['proxy'] ?? null);
     $out = ['steps' => []];
     try {
+        if (empty($in['proxy'])) throw new RuntimeException('Chưa nhập proxy Việt Nam.');
+        $out['proxy_check'] = $c->checkProxy();
         $paths = [];
         if (empty($in['login_path']) || empty($in['balance_path'])) {
             $paths = $c->discover($in['save_dir'] ?? null);
