@@ -7,15 +7,18 @@ $j = fn($d) => json_encode($d, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT | JSON
 $in = [
     'user'         => $_POST['user'] ?? '',
     'pass'         => $_POST['pass'] ?? '',
+    'token'        => trim($_POST['token'] ?? ''),
     'proxy'        => $_POST['proxy'] ?? (getenv('MU_PROXY') ?: ''),
+    'api'          => trim($_POST['api'] ?? '') ?: 'https://djmuc.vinamilk3.net',
     'login_path'   => trim($_POST['login_path'] ?? ''),
     'balance_path' => trim($_POST['balance_path'] ?? ''),
     'info_path'    => trim($_POST['info_path'] ?? ''),
     'user_field'   => trim($_POST['user_field'] ?? ''),
     'pass_field'   => trim($_POST['pass_field'] ?? ''),
+    'login_extra'  => trim($_POST['login_extra'] ?? ''),
 ];
 $result = null;
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && $in['user'] !== '' && $in['pass'] !== '') {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($in['token'] !== '' || ($in['user'] !== '' && $in['pass'] !== ''))) {
     $result = mu_run($in);
 }
 ?><!doctype html>
@@ -43,19 +46,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $in['user'] !== '' && $in['pass'] !
 <div class="box">
   <h1>Đăng nhập &amp; xem số dư</h1>
   <form method="post" autocomplete="off">
-    <label>Tài khoản</label>
-    <input name="user" value="<?= $h($in['user']) ?>" required>
-    <label>Mật khẩu</label>
-    <input name="pass" type="password" required>
-    <label>Proxy Việt Nam (host:port:user:pass hoặc http://user:pass@host:port)</label>
-    <input name="proxy" value="<?= $h($in['proxy']) ?>">
+    <label>Tài khoản web</label>
+    <input name="user" value="<?= $h($in['user']) ?>">
+    <label>Mật khẩu web</label>
+    <input name="pass" type="password">
+    <label>Token (tùy chọn – dán từ trình duyệt để bỏ qua đăng nhập)</label>
+    <input name="token" value="<?= $h($in['token']) ?>" placeholder="để trống nếu dùng tài khoản/mật khẩu">
+    <label>Proxy Việt Nam (chỉ cần khi chạy ở nơi bị chặn)</label>
+    <input name="proxy" value="<?= $h($in['proxy']) ?>" placeholder="host:port:user:pass">
     <details>
-      <summary>Nâng cao (để trống = tự dò API)</summary>
-      <label>API đăng nhập</label><input name="login_path" value="<?= $h($in['login_path']) ?>" placeholder="/api/.../login">
-      <label>API số dư</label><input name="balance_path" value="<?= $h($in['balance_path']) ?>" placeholder="/api/.../balance">
-      <label>API thông tin tài khoản</label><input name="info_path" value="<?= $h($in['info_path']) ?>" placeholder="/api/.../userInfo">
-      <label>Tên trường tài khoản</label><input name="user_field" value="<?= $h($in['user_field']) ?>" placeholder="username">
+      <summary>Nâng cao (API thật: djmuc.vinamilk3.net)</summary>
+      <label>Host API</label><input name="api" value="<?= $h($in['api']) ?>">
+      <label>API đăng nhập</label><input name="login_path" value="<?= $h($in['login_path']) ?>" placeholder="/api/front/user/login">
+      <label>API số dư</label><input name="balance_path" value="<?= $h($in['balance_path']) ?>" placeholder="/api/front/user/balance">
+      <label>API thông tin tài khoản</label><input name="info_path" value="<?= $h($in['info_path']) ?>" placeholder="/api/front/user/info">
+      <label>Tên trường tài khoản</label><input name="user_field" value="<?= $h($in['user_field']) ?>" placeholder="userName">
       <label>Tên trường mật khẩu</label><input name="pass_field" value="<?= $h($in['pass_field']) ?>" placeholder="password">
+      <label>Dữ liệu thêm khi đăng nhập (JSON)</label><input name="login_extra" value="<?= $h($in['login_extra']) ?>" placeholder='{"verifyCode":""}'>
     </details>
     <button type="submit">Đăng nhập &amp; lấy thông tin</button>
   </form>

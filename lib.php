@@ -7,17 +7,27 @@ const MU_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKi
 
 class MuClient
 {
-    public string $base;
+    public string $base;   // trang giao diện (nơi tải HTML/JS, dùng làm Origin/Referer)
+    public string $api;    // host API thật, vd https://djmuc.vinamilk3.net
     public ?string $proxy;
     public string $jar;
     public array $log = [];
     public ?string $token = null;
 
-    public function __construct(?string $proxy, string $base = 'https://mu.sng22.vip', ?string $jar = null)
+    public function __construct(?string $proxy, string $base = 'https://mu.sng22.vip', ?string $api = 'https://djmuc.vinamilk3.net', ?string $jar = null)
     {
         $this->base  = rtrim($base, '/');
+        $this->api   = rtrim($api ?: $base, '/');
         $this->proxy = $proxy ? self::normalizeProxy($proxy) : null;
         $this->jar   = $jar ?? tempnam(sys_get_temp_dir(), 'mu_');
+    }
+
+    /** Ghép đường dẫn API vào host API thật. */
+    public function apiUrl(string $u): string
+    {
+        if (preg_match('#^https?://#', $u)) return $u;
+        if (str_starts_with($u, '//')) return 'https:' . $u;
+        return $this->api . '/' . ltrim($u, '/');
     }
 
     /** Nhận cả dạng host:port:user:pass lẫn http://user:pass@host:port */
@@ -39,13 +49,14 @@ class MuClient
         return preg_replace('#/[^/]*$#', '/', $page) . $u;
     }
 
-    /** @return array{0:int,1:string} */
-    public function request(string $method, string $url, $body = null, array $headers = []): array
+    /** @return array{0:int,1:string,2:string} [http, body, response-headers] */
+    public function request(string $method, string $url, $body = null, array $headers = [], bool $wantHeaders = false): array
     {
         $ch = curl_init($url);
         if ($this->token) {
             $headers[] = 'Authorization: Bearer ' . $this->token;
             $headers[] = 'token: ' . $this->token;
+            $headers[] = 'X-Token: ' . $this->token;
         }
         $isPage = $method === 'GET' && preg_match('~(\.html?|/)([?#]|$)|^https?://[^/]+$~', $url);
         $base = $isPage
@@ -72,6 +83,13 @@ class MuClient
             $opts[CURLOPT_HTTPPROXYTUNNEL] = true;
         }
         if ($body !== null) $opts[CURLOPT_POSTFIELDS] = $body;
+        $rawHdr = '';
+        if ($wantHeaders) {
+            $opts[CURLOPT_HEADERFUNCTION] = function ($ch, $line) use (&$rawHdr) {
+                $rawHdr .= $line;
+                return strlen($line);
+            };
+        }
         curl_setopt_array($ch, $opts);
         $res = curl_exec($ch);
         if ($res === false) {
@@ -83,7 +101,18 @@ class MuClient
         $via = curl_getinfo($ch, CURLINFO_PRIMARY_IP);
         curl_close($ch);
         $this->log[] = "$method $url -> HTTP $code (qua $via)";
-        return [$code, $res];
+        return [$code, $res, $rawHdr];
+    }
+
+    /** Lấy token từ header phản hồi (token / authorization / x-token / access-token). */
+    public static function headerToken(string $rawHdr): ?string
+    {
+        foreach (explode("\n", $rawHdr) as $line) {
+            if (preg_match('/^(token|authorization|x-token|access[-_]?token)\s*:\s*(.+)$/i', trim($line), $m)) {
+                return trim(preg_replace('/^Bearer\s+/i', '', $m[2]));
+            }
+        }
+        return null;
     }
 
     /** Kiểm tra IP/quốc gia mà Cloudflare (và trang web) nhìn thấy khi đi qua proxy. */
@@ -151,19 +180,21 @@ class MuClient
     /** Thử đăng nhập. Trả về response JSON (mảng) nếu thành công. */
     public function login(string $path, string $user, string $pass, array $opt = []): array
     {
-        $uf = $opt['user_field'] ?? 'username';
+        $uf = $opt['user_field'] ?? 'userName';
         $pf = $opt['pass_field'] ?? 'password';
         $payload = [$uf => $user, $pf => $pass] + ($opt['extra'] ?? []);
         $formats = isset($opt['format']) ? [$opt['format']] : ['json', 'form'];
         $last = null;
         foreach ($formats as $fmt) {
-            [$c, $res] = $fmt === 'form'
-                ? $this->request('POST', $this->url($path), http_build_query($payload), ['Content-Type: application/x-www-form-urlencoded'])
-                : $this->request('POST', $this->url($path), json_encode($payload), ['Content-Type: application/json;charset=UTF-8']);
+            [$c, $res, $hdr] = $fmt === 'form'
+                ? $this->request('POST', $this->apiUrl($path), http_build_query($payload), ['Content-Type: application/x-www-form-urlencoded'], true)
+                : $this->request('POST', $this->apiUrl($path), json_encode($payload), ['Content-Type: application/json;charset=UTF-8'], true);
             $data = json_decode($res, true);
             $last = ['http' => $c, 'format' => $fmt, 'raw' => is_array($data) ? $data : mb_substr($res, 0, 500)];
             if (is_array($data) && self::looksOk($data)) {
-                $this->token = self::findKey($data, ['token', 'accesstoken', 'access_token', 'sessionid', 'session_id', 'sid']);
+                // token có thể ở body, hoặc ở header (token/authorization), hoặc trong cookie
+                $this->token = self::findKey($data, ['token', 'accesstoken', 'access_token', 'sessionid', 'session_id', 'sid'])
+                    ?: self::headerToken($hdr);
                 return ['ok' => true, 'path' => $path] + $last;
             }
         }
@@ -172,11 +203,23 @@ class MuClient
 
     public function get(string $path, string $method = 'GET'): array
     {
-        [$c, $res] = $this->request($method, $this->url($path), $method === 'POST' ? '{}' : null,
+        [$c, $res] = $this->request($method, $this->apiUrl($path), $method === 'POST' ? '{}' : null,
             ['Content-Type: application/json;charset=UTF-8']);
         $data = json_decode($res, true);
         return ['http' => $c, 'path' => $path, 'ok' => is_array($data) && self::looksOk($data),
                 'raw' => is_array($data) ? $data : mb_substr($res, 0, 500)];
+    }
+
+    /** Đường dẫn API suy từ cấu trúc /api/front/... đã biết. */
+    public static function knownPaths(string $type): array
+    {
+        return [
+            'login'   => ['/api/front/user/login', '/api/front/login', '/api/front/user/signin'],
+            'info'    => ['/api/front/user/info', '/api/front/user/getInfo', '/api/front/member/info'],
+            'balance' => ['/api/front/user/balance', '/api/front/user/getBalance', '/api/front/user/amount',
+                          '/api/front/account/balance', '/api/front/fund/balance', '/api/front/user/wallet',
+                          '/api/front/user/money', '/api/front/user/info'],
+        ][$type] ?? [];
     }
 
     public static function looksOk(array $d): bool
@@ -205,7 +248,8 @@ class MuClient
 
     public static function balanceOf($data)
     {
-        return self::findKey($data, ['balance', 'money', 'totalbalance', 'total_balance', 'amount', 'credit', 'gold', 'coin', 'usermoney', 'user_money']);
+        return self::findKey($data, ['balance', 'availablebalance', 'available_balance', 'usablebalance', 'usable_balance',
+            'money', 'totalbalance', 'total_balance', 'amount', 'credit', 'gold', 'coin', 'usermoney', 'user_money', 'point']);
     }
 
     /** Lọc ứng viên từ danh sách discover. */
@@ -227,44 +271,52 @@ class MuClient
  */
 function mu_run(array $in): array
 {
-    $c = new MuClient($in['proxy'] ?? null);
-    $out = ['steps' => []];
+    $c = new MuClient(
+        $in['proxy'] ?? null,
+        $in['site'] ?? 'https://mu.sng22.vip',
+        $in['api'] ?? 'https://djmuc.vinamilk3.net'
+    );
+    // Token sẵn có (lấy từ "Copy as cURL" trên trình duyệt) → bỏ qua bước đăng nhập.
+    if (!empty($in['token'])) $c->token = $in['token'];
+
+    $merge = fn(array $user, array $disc, string $type) =>
+        array_values(array_unique(array_merge($user, MuClient::pick($disc, $type), MuClient::knownPaths($type))));
+
+    $out = ['steps' => [], 'api' => $c->api];
     try {
-        if (empty($in['proxy'])) throw new RuntimeException('Chưa nhập proxy Việt Nam.');
-        $out['proxy_check'] = $c->checkProxy();
+        if (!empty($in['proxy'])) $out['proxy_check'] = $c->checkProxy();
+
+        // Dò thêm đường dẫn từ JS nếu mở được trang (không bắt buộc – đã có knownPaths).
         $paths = [];
-        if (empty($in['login_path']) || empty($in['balance_path'])) {
-            $paths = $c->discover($in['save_dir'] ?? null);
-            $out['discovered'] = $paths;
-        }
-        $c->request('GET', $c->base . '/home/mobile.html');
+        try { $paths = $c->discover($in['save_dir'] ?? null); $out['discovered'] = $paths; }
+        catch (Throwable $e) { $out['discover_note'] = $e->getMessage(); }
 
-        $loginCands = !empty($in['login_path']) ? [$in['login_path']] : MuClient::pick($paths, 'login');
-        if (!$loginCands) throw new RuntimeException('Không tìm thấy API đăng nhập – nhập tay đường dẫn login.');
-        $opt = array_filter([
-            'user_field' => $in['user_field'] ?? null,
-            'pass_field' => $in['pass_field'] ?? null,
-        ]);
-        foreach ($loginCands as $p) {
-            $r = $c->login($p, $in['user'], $in['pass'], $opt);
-            $out['steps'][] = ['Đăng nhập' => $r];
-            if ($r['ok']) { $out['login'] = $r; break; }
+        // --- Đăng nhập (bỏ qua nếu đã có token) ---
+        if (!$c->token) {
+            $loginCands = $merge(array_filter([$in['login_path'] ?? '']), $paths, 'login');
+            $opt = array_filter(['user_field' => $in['user_field'] ?? null, 'pass_field' => $in['pass_field'] ?? null]);
+            if (!empty($in['login_extra'])) $opt['extra'] = (array) json_decode($in['login_extra'], true);
+            foreach ($loginCands as $p) {
+                $r = $c->login($p, $in['user'] ?? '', $in['pass'] ?? '', $opt);
+                $out['steps'][] = ['Đăng nhập ' . $p => $r];
+                if ($r['ok']) { $out['login'] = $r; break; }
+            }
+            if (empty($out['login'])) throw new RuntimeException('Đăng nhập thất bại ở mọi endpoint thử – xem "Các bước đã thử". Có thể sai đường dẫn login, cần captcha, hoặc mật khẩu được mã hoá phía trình duyệt.');
         }
-        if (empty($out['login'])) throw new RuntimeException('Đăng nhập thất bại – xem response bên dưới.');
 
-        $infoCands = !empty($in['info_path']) ? [$in['info_path']] : MuClient::pick($paths, 'info');
-        foreach ($infoCands as $p) {
+        // --- Thông tin tài khoản ---
+        foreach ($merge(array_filter([$in['info_path'] ?? '']), $paths, 'info') as $p) {
             $r = $c->get($p);
             if (!$r['ok']) $r = $c->get($p, 'POST');
-            $out['steps'][] = ['Thông tin' => $r];
+            $out['steps'][] = ['Thông tin ' . $p => $r];
             if ($r['ok']) { $out['info'] = $r; break; }
         }
 
-        $balCands = !empty($in['balance_path']) ? [$in['balance_path']] : MuClient::pick($paths, 'balance');
-        foreach ($balCands as $p) {
+        // --- Số dư ---
+        foreach ($merge(array_filter([$in['balance_path'] ?? '']), $paths, 'balance') as $p) {
             $r = $c->get($p);
             if (!$r['ok']) $r = $c->get($p, 'POST');
-            $out['steps'][] = ['Số dư' => $r];
+            $out['steps'][] = ['Số dư ' . $p => $r];
             if ($r['ok'] && MuClient::balanceOf($r['raw']) !== null) { $out['balance_resp'] = $r; break; }
         }
         $out['balance'] = MuClient::balanceOf($out['balance_resp']['raw'] ?? null)
