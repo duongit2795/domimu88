@@ -1,16 +1,21 @@
-# Quản lý tài khoản MU88
+# Quản lý tài khoản MU88 (PHP)
 
-Trang tĩnh (1 file `index.html`) chạy ngay trong trình duyệt, không cần máy chủ/PHP.
+Thêm tài khoản → tự đăng nhập `mu.sng22.vip` (mật khẩu MD5) → hiện số dư. Quản lý nhiều tài khoản.
 
-- Thêm tài khoản → tự đăng nhập `mu.sng22.vip` → hiện số dư.
-- Dữ liệu (mã băm MD5 của mật khẩu + kết quả) lưu tại máy bằng localStorage, không gửi đi đâu ngoài chính `mu.sng22.vip`.
+## File
+- `index.php`  — giao diện quản lý.
+- `lib88.php`  — gọi API đăng nhập/số dư.
+- `update.php` — cập nhật code từ GitHub (cần `config.local.php`).
 
-## Dùng
-- Cách 1: mở thẳng file `index.html` trong trình duyệt (nháy đúp).
-- Cách 2: upload `index.html` lên hosting rồi mở qua URL.
-
-Phải chạy trên trình duyệt ở Việt Nam (IP vào được web). API số dư sẽ cấu hình trong phần "Cài đặt API" khi có.
+## Cài trên hosting
+1. Upload cả 3 file vào thư mục web (cùng 1 chỗ).
+2. Cấp quyền ghi cho thư mục (để lưu `mu88-data.php`).
+3. Mở `index.php`, thêm tài khoản.
 
 ## API đã biết
 - Đăng nhập: `POST https://mu.sng22.vip/api/front/wl/index/login`
-  body JSON `{account, password: md5(mật_khẩu), loginSrc: 0}` → trả `t.token`, `t.nickName`, ...
+  body `{account, password: md5(mật_khẩu), loginSrc: 0}` → `t.token`, `t.nickName`...
+- Số dư: cấu hình ở mục "Cài đặt" khi có API.
+
+## Lưu ý
+Hosting phải vào được `mu.sng22.vip`. Nếu bị "Truy cập bị cấm" (403), cần proxy dân cư/4G Việt Nam ở mục Cài đặt.
