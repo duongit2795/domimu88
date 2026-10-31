@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quản lý tài khoản MU88</title>
+<style>
+  :root{--bg:#0f1420;--card:#1a2233;--line:#2a3550;--txt:#e6ecf5;--mut:#8aa0c0;--pri:#2f6bff;--ok:#19b562;--bad:#ff5a5a;--warn:#f0a500}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);font:15px/1.5 system-ui,Segoe UI,Roboto,sans-serif;padding:14px}
+  .wrap{max-width:900px;margin:0 auto}
+  h1{font-size:20px;margin:0 0 4px}
+  .sub{color:var(--mut);font-size:13px;margin-bottom:14px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:14px}
+  label{display:block;font-size:12px;color:var(--mut);margin:8px 0 4px}
+  input,select{width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;background:#0d131f;color:var(--txt);font-size:15px}
+  .row{display:flex;gap:10px;flex-wrap:wrap}
+  .row>div{flex:1;min-width:140px}
+  button{border:0;border-radius:8px;padding:10px 14px;font-size:14px;font-weight:600;cursor:pointer;color:#fff;background:var(--pri)}
+  button.sec{background:#33405c} button.danger{background:#3a2330;color:#ff9a9a} button.sm{padding:6px 10px;font-size:13px}
+  .bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px}
+  table{width:100%;border-collapse:collapse;margin-top:6px;font-size:14px}
+  th,td{text-align:left;padding:10px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
+  th{color:var(--mut);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.03em}
+  .bal{font-weight:700;font-size:16px}
+  .tag{font-size:11px;padding:2px 8px;border-radius:999px;display:inline-block}
+  .t-ok{background:#11351f;color:#49d17e} .t-bad{background:#3a1f1f;color:#ff8a8a} .t-wait{background:#33300f;color:#f0c550} .t-idle{background:#222b3f;color:#8aa0c0}
+  .muted{color:var(--mut);font-size:12px}
+  .right{text-align:right} .nowrap{white-space:nowrap}
+  details summary{cursor:pointer;color:var(--mut);font-size:13px}
+  pre{background:#0d131f;border:1px solid var(--line);border-radius:8px;padding:10px;overflow:auto;font-size:12px;max-height:280px;white-space:pre-wrap;word-break:break-all}
+  .hint{font-size:12px;color:var(--warn);margin-top:8px}
+  a{color:#7aa2ff}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Quản lý tài khoản MU88</h1>
+  <div class="sub">Thêm tài khoản → tự đăng nhập <code>mu.sng22.vip</code> → hiện số dư. Chạy ngay trong trình duyệt của bạn, dữ liệu lưu tại máy (localStorage).</div>
+
+  <div class="card">
+    <b>Thêm tài khoản</b>
+    <div class="row">
+      <div><label>Tài khoản</label><input id="acc" placeholder="vd: auquaaequangoai" autocomplete="off"></div>
+      <div><label>Mật khẩu</label><input id="pw" type="password" placeholder="mật khẩu đăng nhập" autocomplete="new-password"></div>
+      <div><label>Ghi chú (tùy chọn)</label><input id="note" placeholder="vd: acc chính" autocomplete="off"></div>
+    </div>
+    <div class="bar">
+      <button id="add">+ Thêm &amp; đăng nhập</button>
+      <button class="sec" id="refreshAll">↻ Làm mới tất cả</button>
+      <span id="count" class="muted"></span>
+    </div>
+    <div class="hint" id="corsHint" style="display:none"></div>
+  </div>
+
+  <div class="card">
+    <table id="tbl">
+      <thead><tr>
+        <th>Tài khoản</th><th>Tên / Nick</th><th class="right">Số dư</th><th>Trạng thái</th><th class="right">Thao tác</th>
+      </tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <div id="empty" class="muted" style="padding:14px 4px">Chưa có tài khoản nào. Thêm ở trên.</div>
+  </div>
+
+  <div class="card">
+    <details>
+      <summary>Cài đặt API (mặc định đã đúng cho đăng nhập; số dư cấu hình sau)</summary>
+      <label>URL đăng nhập</label>
+      <input id="cfgLogin">
+      <label>URL số dư (bạn sẽ gửi API này sau; để trống = thử tự dò)</label>
+      <input id="cfgBal" placeholder="vd: https://mu.sng22.vip/api/front/user/balance">
+      <div class="row">
+        <div><label>Phương thức số dư</label>
+          <select id="cfgBalMethod"><option>GET</option><option>POST</option></select></div>
+        <div><label>Tên header gửi token</label><input id="cfgTokenHeader" placeholder="token"></div>
+        <div><label>Tiền tố token</label><input id="cfgTokenPrefix" placeholder="(để trống)"></div>
+      </div>
+      <div class="bar"><button class="sec sm" id="saveCfg">Lưu cài đặt</button>
+        <button class="danger sm" id="wipe">Xóa toàn bộ dữ liệu</button></div>
+    </details>
+  </div>
+
+  <div class="muted" style="font-size:12px">
+    Lưu ý: trang chỉ lưu <b>mã băm MD5</b> của mật khẩu trên máy bạn để đăng nhập lại, không gửi đi đâu ngoài <code>mu.sng22.vip</code>.
+    Nếu bị lỗi CORS, mở trang này bằng <a href="#" id="bmHelp">cách chạy trong tab mu.sng22.vip</a>.
+  </div>
+  <pre id="log" style="display:none"></pre>
+</div>
+
+<script>
+/* ---------- MD5 (Joseph Myers, rút gọn) ---------- */
+function md5(s){function rl(n,c){return(n<<c)|(n>>>(32-c))}function au(x,y){var l=(x&0xFFFF)+(y&0xFFFF),m=(x>>16)+(y>>16)+(l>>16);return(m<<16)|(l&0xFFFF)}
+function cmn(q,a,b,x,s,t){return au(rl(au(au(a,q),au(x,t)),s),b)}
+function ff(a,b,c,d,x,s,t){return cmn((b&c)|(~b&d),a,b,x,s,t)}function gg(a,b,c,d,x,s,t){return cmn((b&d)|(c&~d),a,b,x,s,t)}
+function hh(a,b,c,d,x,s,t){return cmn(b^c^d,a,b,x,s,t)}function ii(a,b,c,d,x,s,t){return cmn(c^(b|~d),a,b,x,s,t)}
+function tb(str){var n=str.length,b=[(n<<3)&0xFF?0:0],bl=[];for(var i=0;i<(n<<3);i+=8)bl[i>>5]=(bl[i>>5]||0)|((str.charCodeAt(i/8)&0xFF)<<(i%32));bl[n>>2]=(bl[n>>2]||0)|(0x80<<((n%4)*8));bl[(((n+8)>>6)*16)+14]=n*8;return bl}
+var x=tb(unescape(encodeURIComponent(s))),a=1732584193,b=-271733879,c=-1732584194,d=271733878;
+for(var i=0;i<x.length;i+=16){var oa=a,ob=b,oc=c,od=d;for(var j=i;j<i+16;j++)x[j]=x[j]||0;
+a=ff(a,b,c,d,x[i],7,-680876936);d=ff(d,a,b,c,x[i+1],12,-389564586);c=ff(c,d,a,b,x[i+2],17,606105819);b=ff(b,c,d,a,x[i+3],22,-1044525330);
+a=ff(a,b,c,d,x[i+4],7,-176418897);d=ff(d,a,b,c,x[i+5],12,1200080426);c=ff(c,d,a,b,x[i+6],17,-1473231341);b=ff(b,c,d,a,x[i+7],22,-45705983);
+a=ff(a,b,c,d,x[i+8],7,1770035416);d=ff(d,a,b,c,x[i+9],12,-1958414417);c=ff(c,d,a,b,x[i+10],17,-42063);b=ff(b,c,d,a,x[i+11],22,-1990404162);
+a=ff(a,b,c,d,x[i+12],7,1804603682);d=ff(d,a,b,c,x[i+13],12,-40341101);c=ff(c,d,a,b,x[i+14],17,-1502002290);b=ff(b,c,d,a,x[i+15],22,1236535329);
+a=gg(a,b,c,d,x[i+1],5,-165796510);d=gg(d,a,b,c,x[i+6],9,-1069501632);c=gg(c,d,a,b,x[i+11],14,643717713);b=gg(b,c,d,a,x[i],20,-373897302);
+a=gg(a,b,c,d,x[i+5],5,-701558691);d=gg(d,a,b,c,x[i+10],9,38016083);c=gg(c,d,a,b,x[i+15],14,-660478335);b=gg(b,c,d,a,x[i+4],20,-405537848);
+a=gg(a,b,c,d,x[i+9],5,568446438);d=gg(d,a,b,c,x[i+14],9,-1019803690);c=gg(c,d,a,b,x[i+3],14,-187363961);b=gg(b,c,d,a,x[i+8],20,1163531501);
+a=gg(a,b,c,d,x[i+13],5,-1444681467);d=gg(d,a,b,c,x[i+2],9,-51403784);c=gg(c,d,a,b,x[i+7],14,1735328473);b=gg(b,c,d,a,x[i+12],20,-1926607734);
+a=hh(a,b,c,d,x[i+5],4,-378558);d=hh(d,a,b,c,x[i+8],11,-2022574463);c=hh(c,d,a,b,x[i+11],16,1839030562);b=hh(b,c,d,a,x[i+14],23,-35309556);
+a=hh(a,b,c,d,x[i+1],4,-1530992060);d=hh(d,a,b,c,x[i+4],11,1272893353);c=hh(c,d,a,b,x[i+7],16,-155497632);b=hh(b,c,d,a,x[i+10],23,-1094730640);
+a=hh(a,b,c,d,x[i+13],4,681279174);d=hh(d,a,b,c,x[i],11,-358537222);c=hh(c,d,a,b,x[i+3],16,-722521979);b=hh(b,c,d,a,x[i+6],23,76029189);
+a=hh(a,b,c,d,x[i+9],4,-640364487);d=hh(d,a,b,c,x[i+12],11,-421815835);c=hh(c,d,a,b,x[i+15],16,530742520);b=hh(b,c,d,a,x[i+2],23,-995338651);
+a=ii(a,b,c,d,x[i],6,-198630844);d=ii(d,a,b,c,x[i+7],10,1126891415);c=ii(c,d,a,b,x[i+14],15,-1416354905);b=ii(b,c,d,a,x[i+5],21,-57434055);
+a=ii(a,b,c,d,x[i+12],6,1700485571);d=ii(d,a,b,c,x[i+3],10,-1894986606);c=ii(c,d,a,b,x[i+10],15,-1051523);b=ii(b,c,d,a,x[i+1],21,-2054922799);
+a=ii(a,b,c,d,x[i+8],6,1873313359);d=ii(d,a,b,c,x[i+15],10,-30611744);c=ii(c,d,a,b,x[i+6],15,-1560198380);b=ii(b,c,d,a,x[i+13],21,1309151649);
+a=ii(a,b,c,d,x[i+4],6,-145523070);d=ii(d,a,b,c,x[i+11],10,-1120210379);c=ii(c,d,a,b,x[i+2],15,718787259);b=ii(b,c,d,a,x[i+9],21,-343485551);
+a=au(a,oa);b=au(b,ob);c=au(c,oc);d=au(d,od);}
+function hex(n){var s='',j;for(j=0;j<4;j++)s+=('0'+((n>>(j*8))&0xFF).toString(16)).slice(-2);return s}
+return hex(a)+hex(b)+hex(c)+hex(d);}
+
+/* ---------- Cấu hình ---------- */
+const DEF = {
+  login: 'https://mu.sng22.vip/api/front/wl/index/login',
+  bal: '',
+  balMethod: 'GET',
+  tokenHeader: 'token',
+  tokenPrefix: ''
+};
+const LS_CFG='mu88_cfg', LS_ACC='mu88_accounts';
+const cfg = Object.assign({}, DEF, load(LS_CFG, {}));
+let accounts = load(LS_ACC, []);  // [{account, pwHash, nick, fullName, note, bal, status, raw, time}]
+
+function load(k,d){try{return JSON.parse(localStorage.getItem(k))??d}catch(e){return d}}
+function save(){localStorage.setItem(LS_CFG,JSON.stringify(cfg));localStorage.setItem(LS_ACC,JSON.stringify(accounts))}
+const $=id=>document.getElementById(id);
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* ---------- Gọi API ---------- */
+async function login(acc){
+  const body = JSON.stringify({account: acc.account, password: acc.pwHash, loginSrc: 0});
+  const r = await fetch(cfg.login, {method:'POST', headers:{'Content-Type':'application/json','Accept':'application/json, text/plain, */*'}, body});
+  const j = await r.json();
+  if(!(j && (j.success===true || j.code===0))) throw new Error('Đăng nhập lỗi: ' + (j && j.msg ? j.msg : ('HTTP '+r.status)));
+  return j.t || j;
+}
+
+const BK=['balance','availableBalance','usableBalance','money','totalBalance','amount','credit','point','gold'];
+function findBal(o){
+  if(!o||typeof o!='object')return undefined;
+  for(const k in o) if(BK.some(b=>b.toLowerCase()===k.toLowerCase()) && typeof o[k]!='object') return o[k];
+  for(const k in o){const r=findBal(o[k]); if(r!==undefined)return r;}
+}
+async function getBalance(token){
+  const H = {'Accept':'application/json, text/plain, */*'};
+  if(token){ H[cfg.tokenHeader||'token'] = (cfg.tokenPrefix||'') + token; }
+  const tryUrl = async (u,m)=>{ try{
+      const r = await fetch(u,{method:m, headers:H, body: m==='POST'?'{}':undefined});
+      const j = await r.json().catch(()=>null);
+      if(j && (j.success===true||j.code===0)) return j;
+    }catch(e){} return null; };
+  let list = cfg.bal ? [cfg.bal] : [
+    'https://mu.sng22.vip/api/front/user/balance','https://mu.sng22.vip/api/front/user/getBalance',
+    'https://mu.sng22.vip/api/front/user/amount','https://mu.sng22.vip/api/front/user/info',
+    'https://mu.sng22.vip/api/front/game/balance'];
+  for(const u of list){ const j = await tryUrl(u, cfg.balMethod) || await tryUrl(u, cfg.balMethod==='GET'?'POST':'GET');
+    if(j){ const b=findBal(j); if(b!==undefined) return {bal:b, raw:j}; if(!cfg.bal) continue; return {bal:undefined, raw:j}; } }
+  return {bal:undefined, raw:null};
+}
+
+async function refreshOne(i){
+  const a = accounts[i]; a.status='wait'; render();
+  try{
+    const t = await login(a);
+    a.nick = t.nickName || ''; a.fullName = t.fullName || t.userName || ''; a.userId = t.userId || t.uid || '';
+    const token = t.token || '';
+    let r = {bal: findBal(t), raw: t};
+    if(r.bal===undefined) r = await getBalance(token);
+    a.bal = r.bal; a.raw = r.raw; a.token = token;
+    a.status = (r.bal!==undefined) ? 'ok' : 'nobal';
+    a.time = Date.now();
+    $('corsHint').style.display='none';
+  }catch(e){
+    a.status='err'; a.err = e.message;
+    if(/Failed to fetch|NetworkError|CORS/i.test(e.message)){
+      $('corsHint').style.display='block';
+      $('corsHint').textContent='Lỗi mạng/CORS khi gọi mu.sng22.vip. Trang này cần được mở trong cùng trình duyệt đang vào được web. Nếu vẫn lỗi, dùng cách chạy trong tab mu.sng22.vip (bấm link cuối trang).';
+    }
+  }
+  save(); render();
+}
+async function refreshAll(){ for(let i=0;i<accounts.length;i++){ await refreshOne(i); } }
+
+/* ---------- Giao diện ---------- */
+function render(){
+  $('count').textContent = accounts.length ? (accounts.length+' tài khoản') : '';
+  $('empty').style.display = accounts.length ? 'none':'block';
+  $('rows').innerHTML = accounts.map((a,i)=>{
+    const tag = {ok:['t-ok','OK'],err:['t-bad','Lỗi'],wait:['t-wait','Đang chạy…'],nobal:['t-wait','Chưa có API số dư'],idle:['t-idle','Chưa chạy']}[a.status||'idle'];
+    const bal = a.bal!==undefined && a.bal!==null ? Number(a.bal).toLocaleString('vi-VN') : '—';
+    const when = a.time ? new Date(a.time).toLocaleTimeString('vi-VN') : '';
+    return `<tr>
+      <td><b>${esc(a.account)}</b>${a.note?`<div class="muted">${esc(a.note)}</div>`:''}</td>
+      <td>${esc(a.fullName||'')}${a.nick?`<div class="muted">${esc(a.nick)}</div>`:''}</td>
+      <td class="right bal">${bal}</td>
+      <td><span class="tag ${tag[0]}">${tag[1]}</span>${when?`<div class="muted">${when}</div>`:''}${a.status==='err'&&a.err?`<div class="muted" style="color:#ff8a8a">${esc(a.err)}</div>`:''}</td>
+      <td class="right nowrap">
+        <button class="sm sec" onclick="refreshOne(${i})">↻</button>
+        ${a.raw?`<button class="sm sec" onclick="showRaw(${i})">JSON</button>`:''}
+        <button class="sm danger" onclick="del(${i})">Xóa</button>
+      </td></tr>`;
+  }).join('');
+}
+window.refreshOne=refreshOne;
+window.del=i=>{ if(confirm('Xóa tài khoản '+accounts[i].account+'?')){accounts.splice(i,1);save();render();} };
+window.showRaw=i=>{ const p=$('log'); p.style.display='block'; p.textContent=JSON.stringify(accounts[i].raw,null,2); p.scrollIntoView({behavior:'smooth'}); };
+
+$('add').onclick=async()=>{
+  const account=$('acc').value.trim(), pw=$('pw').value, note=$('note').value.trim();
+  if(!account||!pw){alert('Nhập tài khoản và mật khẩu');return;}
+  if(accounts.some(a=>a.account===account)){ if(!confirm('Tài khoản đã có, cập nhật mật khẩu?')) return; accounts=accounts.filter(a=>a.account!==account); }
+  const a={account, pwHash:md5(pw), note, status:'idle'};
+  accounts.push(a); save();
+  $('acc').value='';$('pw').value='';$('note').value='';
+  render();
+  await refreshOne(accounts.length-1);
+};
+$('refreshAll').onclick=refreshAll;
+$('saveCfg').onclick=()=>{ cfg.login=$('cfgLogin').value.trim()||DEF.login; cfg.bal=$('cfgBal').value.trim();
+  cfg.balMethod=$('cfgBalMethod').value; cfg.tokenHeader=$('cfgTokenHeader').value.trim()||'token';
+  cfg.tokenPrefix=$('cfgTokenPrefix').value; save(); alert('Đã lưu cài đặt.'); };
+$('wipe').onclick=()=>{ if(confirm('Xóa toàn bộ tài khoản và cài đặt?')){localStorage.removeItem(LS_ACC);localStorage.removeItem(LS_CFG);location.reload();} };
+$('bmHelp').onclick=e=>{e.preventDefault();alert('Nếu lỗi CORS: mở trang web mu.sng22.vip và đăng nhập, rồi dùng công cụ chạy trong tab đó (mình sẽ gửi bản bookmarklet). Lúc đó mọi lời gọi là cùng nguồn, không bị CORS.');};
+
+// nạp cài đặt vào form
+$('cfgLogin').value=cfg.login; $('cfgBal').value=cfg.bal; $('cfgBalMethod').value=cfg.balMethod;
+$('cfgTokenHeader').value=cfg.tokenHeader; $('cfgTokenPrefix').value=cfg.tokenPrefix;
+render();
+</script>
+</body>
+</html>
