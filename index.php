@@ -27,7 +27,14 @@ $msg = ''; $err = '';
 /* ---------- Xử lý hành động ---------- */
 $action = $_POST['action'] ?? '';
 if ($action !== '') {
-    if ($action === 'save_settings') {
+    if ($action === 'save_proxy' || $action === 'check_proxy') {
+        $S['proxy'] = trim($_POST['proxy'] ?? '');
+        store_save($DATA, $S);
+        if ($action === 'check_proxy') {
+            $api = new Mu88($S['proxy'] ?: null);
+            $proxyCheck = $api->checkProxy();
+        } else { $msg = 'Đã lưu proxy.'; }
+    } elseif ($action === 'save_settings') {
         $S['proxy'] = trim($_POST['proxy'] ?? '');
         $S['bal'] = [
             'url'    => trim($_POST['bal_url'] ?? ''),
@@ -82,7 +89,7 @@ if ($action !== '') {
         unset($a);
     }
     store_save($DATA, $S);
-    if ($err === '') { // PRG: tránh gửi lại form khi F5 (giữ lại nếu có lỗi nhập liệu)
+    if ($err === '' && $action !== 'check_proxy') { // PRG; giữ trang khi có lỗi nhập liệu hoặc đang xem kết quả kiểm tra proxy
         header('Location: ' . strtok($_SERVER['REQUEST_URI'], '?') . '?done=' . ($action === 'add' ? 'add' : 'ok'));
         exit;
     }
@@ -123,6 +130,30 @@ $writable = is_writable(dirname($DATA));
   <?php if ($msg): ?><div class="flash ok"><?= $h($msg) ?></div><?php endif; ?>
   <?php if ($err): ?><div class="flash err"><?= $h($err) ?></div><?php endif; ?>
   <?php if (!$writable): ?><div class="flash err">Thư mục không ghi được — dữ liệu không lưu được. Cấp quyền ghi cho thư mục, hoặc dữ liệu sẽ nằm tạm ở <?= $h(dirname($DATA)) ?>.</div><?php endif; ?>
+
+  <div class="card">
+    <b>Proxy đăng nhập</b>
+    <form method="post">
+      <label>Proxy Việt Nam — để trống = dùng IP máy chủ. Dạng <code>host:port:user:pass</code> hoặc <code>http://user:pass@host:port</code></label>
+      <input name="proxy" value="<?= $h($S['proxy']) ?>" placeholder="vd: 1.2.3.4:8000:user:pass">
+      <div class="bar">
+        <button type="submit" name="action" value="check_proxy" class="sec">Kiểm tra proxy</button>
+        <button type="submit" name="action" value="save_proxy">Lưu proxy</button>
+        <span class="muted"><?= $S['proxy'] ? 'Đang dùng proxy' : 'Đang dùng IP máy chủ' ?></span>
+      </div>
+    </form>
+    <?php if (!empty($proxyCheck)): $pc = $proxyCheck; ?>
+      <?php if (!empty($pc['error'])): ?>
+        <div class="flash err" style="margin-top:12px"><?= $h($pc['error']) ?></div>
+      <?php else: ?>
+        <div class="flash <?= !empty($pc['ok']) ? 'ok' : 'err' ?>" style="margin-top:12px">
+          <b><?= $h($pc['verdict'] ?? '') ?></b><br>
+          IP đi ra: <b><?= $h($pc['ip'] ?? '?') ?></b> · Quốc gia: <b><?= $h($pc['country'] ?? '?') ?></b>
+          <?php if (isset($pc['site_http'])): ?> · mu.sng22.vip: HTTP <?= $h($pc['site_http']) ?> <?= !empty($pc['blocked']) ? '(BỊ CHẶN)' : '(OK)' ?><?php endif; ?>
+        </div>
+      <?php endif; ?>
+    <?php endif; ?>
+  </div>
 
   <div class="card">
     <b>Thêm tài khoản</b>
@@ -173,8 +204,6 @@ $writable = is_writable(dirname($DATA));
       <summary>Cài đặt (proxy + API số dư)</summary>
       <form method="post">
         <input type="hidden" name="action" value="save_settings">
-        <label>Proxy Việt Nam (để trống = dùng IP máy chủ). Dạng host:port:user:pass</label>
-        <input name="proxy" value="<?= $h($S['proxy']) ?>" placeholder="để trống nếu hosting vào được trực tiếp">
         <label>URL API số dư (bạn gửi sau; để trống = thử tự dò)</label>
         <input name="bal_url" value="<?= $h($S['bal']['url']) ?>" placeholder="vd: https://mu.sng22.vip/api/front/user/balance">
         <div class="row">

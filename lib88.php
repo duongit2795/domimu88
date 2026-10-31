@@ -68,6 +68,27 @@ class Mu88
         return [$code, $res];
     }
 
+    /** Kiểm tra proxy: IP/quốc gia đi ra, và có vào được host đăng nhập không. */
+    public function checkProxy(): array
+    {
+        $out = ['proxy' => $this->proxy ? preg_replace('#//[^@]*@#', '//***@', $this->proxy) : '(IP máy chủ)'];
+        try {
+            [$c, $txt] = $this->req('GET', 'https://www.cloudflare.com/cdn-cgi/trace', null, ['Accept: text/plain']);
+            preg_match('/^ip=(.*)$/m', $txt, $m1); preg_match('/^loc=(.*)$/m', $txt, $m2);
+            $out['ip'] = $m1[1] ?? '?'; $out['country'] = $m2[1] ?? '?';
+        } catch (Throwable $e) { $out['error'] = 'Không kết nối được proxy: ' . $e->getMessage(); return $out; }
+        try {
+            [$c, $res] = $this->req('GET', $this->origin . '/home/index.html', null, ['Accept: text/html']);
+            $blocked = str_contains($res, 'Truy cập bị cấm') || str_contains($res, 'Access Denied');
+            $out['site_http'] = $c; $out['blocked'] = $blocked;
+            $out['ok'] = !$blocked;
+            $out['verdict'] = $blocked
+                ? ($out['country'] === 'VN' ? 'IP Việt Nam NHƯNG vẫn bị chặn (IP datacenter). Cần proxy dân cư/4G.' : 'IP ' . $out['country'] . ' không phải Việt Nam.')
+                : 'Proxy vào được mu.sng22.vip — đăng nhập được.';
+        } catch (Throwable $e) { $out['error'] = $e->getMessage(); }
+        return $out;
+    }
+
     /** Đăng nhập. $password là mật khẩu GỐC (sẽ tự MD5) hoặc đã MD5 (32 hex). */
     public function login(string $account, string $password): array
     {
