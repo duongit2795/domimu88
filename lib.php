@@ -218,7 +218,11 @@ class MuClient
             'info'    => ['/api/front/user/info', '/api/front/user/getInfo', '/api/front/member/info'],
             'balance' => ['/api/front/user/balance', '/api/front/user/getBalance', '/api/front/user/amount',
                           '/api/front/account/balance', '/api/front/fund/balance', '/api/front/user/wallet',
-                          '/api/front/user/money', '/api/front/user/info'],
+                          '/api/front/user/money', '/api/front/user/info',
+                          // số dư game MU / nhà cung cấp bên thứ ba sau khi "thêm tài khoản MU"
+                          '/api/front/game/balance', '/api/front/game/queryBalance', '/api/front/game/money',
+                          '/api/front/user/gameBalance', '/api/front/user/thirdBalance', '/api/front/platform/balance',
+                          '/api/front/user/platformBalance', '/api/front/game/list', '/api/front/user/gameAccount'],
         ][$type] ?? [];
     }
 

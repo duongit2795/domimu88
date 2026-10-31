@@ -15,7 +15,7 @@ const REPO   = 'duongit2795/domimu88';
 const BRANCH = 'claude/mu-balance-php';
 // Danh sách file được cập nhật (đường dẫn tương đối gốc dự án).
 const FILES = ['lib.php', 'balance.php', 'public/index.php', 'public/update.php',
-    'public/browser-console.js', 'public/balance-popup.js', 'public/bookmarklet.txt'];
+    'public/proxy-test.php', 'public/browser-console.js', 'public/balance-popup.js', 'public/bookmarklet.txt'];
 
 $root = realpath(__DIR__ . '/..');
 $cli  = PHP_SAPI === 'cli';
