@@ -61,16 +61,20 @@
     if(!okJson(j)) throw new Error((j&&j.msg) ? j.msg : ('HTTP '+r.status));
     return j.t || j;
   }
-  var BK=['balance','availableBalance','usableBalance','money','totalBalance','amount','credit','point','gold'];
+  var BK=['userMoney','balance','availableBalance','usableBalance','money','totalBalance','amount','credit','point','gold'];
   function findBal(o){ if(!o||typeof o!='object')return undefined;
     for(var k in o) if(BK.some(function(b){return b.toLowerCase()===k.toLowerCase()}) && typeof o[k]!='object') return o[k];
     for(var k in o){ var r=findBal(o[k]); if(r!==undefined) return r; } }
   async function getBal(token){
-    var cfg = state.bal||{}; var H={'Accept':'application/json, text/plain, */*'};
-    if(token) H[cfg.header||'token'] = (cfg.prefix||'') + token;
+    var cfg = state.bal||{};
+    // token gửi qua các header mà nền tảng dùng
+    function hdrs(){ var H={'Accept':'application/json, text/plain, */*'};
+      if(token){ (cfg.header ? [cfg.header] : ['x-session-token','token','Authorization']).forEach(function(hn){
+        H[hn] = (hn==='Authorization' ? 'Bearer ' : (cfg.prefix||'')) + token; }); } return H; }
+    var H = hdrs();
     var urls = cfg.url ? [cfg.url] : [
-      ORIGIN+'/api/front/user/balance', ORIGIN+'/api/front/user/getBalance',
-      ORIGIN+'/api/front/user/amount', ORIGIN+'/api/front/user/info', ORIGIN+'/api/front/game/balance'];
+      ORIGIN+'/api/front/user/timeline', ORIGIN+'/api/front/user/info',
+      ORIGIN+'/api/front/user/balance', ORIGIN+'/api/front/user/getBalance'];
     for(var i=0;i<urls.length;i++){
       for(var m=0;m<2;m++){ var method = m? (cfg.method==='GET'?'POST':'GET') : (cfg.method||'GET');
         try{ var r = await fetch(urls[i], {method:method, headers:H, body: method==='POST'?'{}':undefined});
